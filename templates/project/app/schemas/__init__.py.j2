@@ -1,0 +1,8 @@
+{% for model in models %}
+from app.schemas.{{ model.name.lower() }} import (
+    {{ model.name }},
+    {{ model.name }}Create,
+    {{ model.name }}Update,
+    {{ model.name }}InDB,
+)
+{% endfor %}

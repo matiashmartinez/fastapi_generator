@@ -1,0 +1,4 @@
+from app.models.base import Base
+{% for model in models %}
+from app.models.{{ model.name.lower() }} import {{ model.name }}
+{% endfor %}

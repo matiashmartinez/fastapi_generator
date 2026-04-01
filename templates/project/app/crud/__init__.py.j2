@@ -1,0 +1,4 @@
+from app.crud.base import CRUDBase
+{% for model in models %}
+from app.crud.crud_{{ model.name.lower() }} import crud_{{ model.name.lower() }}
+{% endfor %}

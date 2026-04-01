@@ -1,0 +1,9 @@
+from fastapi import APIRouter
+{% for model in models %}
+from app.api.api_v1.endpoints import {{ model.name.lower() }}
+{% endfor %}
+
+api_router = APIRouter()
+{% for model in models %}
+api_router.include_router({{ model.name.lower() }}.router, prefix="/{{ model.name.lower() }}", tags=["{{ model.name }}"])
+{% endfor %}

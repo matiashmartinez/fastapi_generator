@@ -1,0 +1,36 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.core.config import settings
+from app.db.base import Base
+from app.db.session import engine
+from app.api.api_v1.api import api_router
+{% if security.enabled %}
+from app.api.api_v1.endpoints import auth
+{% endif %}
+
+# Crear tablas
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="{{ project_name }}",
+    description="{{ description }}",
+    version="{{ version }}",
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+{% if security.enabled %}
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
+{% endif %}
+app.include_router(api_router, prefix="/api/v1")
+
+@app.get("/")
+def root():
+    return {"message": "Welcome to {{ project_name }}"}

@@ -1,0 +1,34 @@
+from typing import List, Optional, Union
+from pydantic import AnyHttpUrl, BaseSettings, validator
+
+class Settings(BaseSettings):
+    PROJECT_NAME: str = "{{ project_name }}"
+    VERSION: str = "{{ version }}"
+    DESCRIPTION: str = "{{ description }}"
+
+    # Database
+    DATABASE_URL: str = "{{ database.url }}"
+
+    # Backend CORS
+    BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
+
+    @validator("BACKEND_CORS_ORIGINS", pre=True)
+    def assemble_cors_origins(cls, v: Union[str, List[str]]) -> Union[List[str], str]:
+        if isinstance(v, str) and not v.startswith("["):
+            return [i.strip() for i in v.split(",")]
+        elif isinstance(v, (list, str)):
+            return v
+        raise ValueError(v)
+
+    {% if security.enabled %}
+    # Security
+    SECRET_KEY: str = "{{ security.jwt_secret_key }}"
+    ALGORITHM: str = "{{ security.jwt_algorithm }}"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = {{ security.jwt_expire_minutes }}
+    {% endif %}
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+
+settings = Settings()

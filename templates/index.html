@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>FastAPI Generator</title>
+    <style>
+        body { font-family: Arial; margin: 40px; background: #f4f4f4; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 20px; border-radius: 8px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 8px; box-sizing: border-box; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+        .model-card, .relationship-card { border: 1px solid #ccc; padding: 15px; margin-bottom: 15px; background: #fafafa; }
+        .field-item { border: 1px solid #ddd; padding: 10px; margin: 10px 0; background: #fff; }
+        .btn-add-field, .btn-add-model, .btn-add-relation { background: #28a745; margin-top: 10px; }
+        .btn-remove { background: #dc3545; margin-left: 10px; }
+        hr { margin: 20px 0; }
+        .inline-group { display: flex; gap: 10px; align-items: center; }
+        .inline-group > div { flex: 1; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🚀 Generador de APIs con FastAPI</h1>
+    <form id="generatorForm">
+        <!-- Información general -->
+        <div class="form-group">
+            <label>Nombre del proyecto</label>
+            <input type="text" name="project_name" value="my_api" required>
+        </div>
+        <div class="form-group">
+            <label>Descripción</label>
+            <textarea name="description">API generada automáticamente</textarea>
+        </div>
+
+        <!-- Base de datos -->
+        <h3>🗄️ Base de datos</h3>
+        <div class="form-group">
+            <label>Motor</label>
+            <select name="db_engine">
+                <option value="sqlite">SQLite</option>
+                <option value="postgresql">PostgreSQL</option>
+                <option value="mysql">MySQL</option>
+            </select>
+        </div>
+        <div id="dbDetails">
+            <div class="form-group">
+                <label>Nombre de la BD / archivo</label>
+                <input type="text" name="db_name" value="app.db">
+            </div>
+            <div id="dbCredentials" style="display: none;">
+                <div class="form-group"><label>Usuario</label><input type="text" name="db_user"></div>
+                <div class="form-group"><label>Contraseña</label><input type="password" name="db_password"></div>
+                <div class="form-group"><label>Host</label><input type="text" name="db_host" value="localhost"></div>
+                <div class="form-group"><label>Puerto</label><input type="number" name="db_port"></div>
+            </div>
+        </div>
+
+        <!-- Autenticación -->
+        <h3>🔐 Autenticación</h3>
+        <div class="form-group">
+            <label><input type="checkbox" id="enableAuth"> Habilitar JWT</label>
+        </div>
+        <div id="authDetails" style="display: none;">
+            <div class="form-group"><label>Secret Key</label><input type="text" name="jwt_secret" value="mysecretkey"></div>
+            <div class="form-group"><label>Expiración (minutos)</label><input type="number" name="jwt_expire" value="30"></div>
+            <div class="form-group"><label>Email del administrador inicial</label><input type="email" name="admin_email" placeholder="admin@example.com"></div>
+        </div>
+
+        <!-- Modelos -->
+        <h3>📦 Modelos</h3>
+        <div id="modelsContainer"></div>
+        <button type="button" id="addModelBtn" class="btn-add-model">+ Agregar modelo</button>
+
+        <!-- Relaciones -->
+        <h3>🔗 Relaciones</h3>
+        <div id="relationshipsContainer"></div>
+        <button type="button" id="addRelationBtn" class="btn-add-relation">+ Agregar relación</button>
+
+        <!-- Características -->
+        <h3>⚙️ Características adicionales</h3>
+        <div class="form-group">
+            <label><input type="checkbox" name="pagination" checked> Paginación</label>
+            <label><input type="checkbox" name="filtering"> Filtrado</label>
+            <label><input type="checkbox" name="sorting"> Ordenamiento</label>
+            <label><input type="checkbox" name="testing" checked> Tests con pytest</label>
+            <label><input type="checkbox" name="docker" checked> Docker</label>
+            <label><input type="checkbox" name="alembic" checked> Alembic</label>
+            <label><input type="checkbox" name="env_file" checked> Archivo .env</label>
+        </div>
+
+        <button type="submit">✨ Generar API ✨</button>
+    </form>
+    <div id="result"></div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- Elementos del DOM ---
+        const dbEngineSelect = document.querySelector('[name="db_engine"]');
+        const dbCredentialsDiv = document.getElementById('dbCredentials');
+        const enableAuthCheck = document.getElementById('enableAuth');
+        const authDetailsDiv = document.getElementById('authDetails');
+        const modelsContainer = document.getElementById('modelsContainer');
+        const addModelBtn = document.getElementById('addModelBtn');
+        const relationshipsContainer = document.getElementById('relationshipsContainer');
+        const addRelationBtn = document.getElementById('addRelationBtn');
+
+        // --- Funciones auxiliares ---
+        function toggleDbCredentials() {
+            dbCredentialsDiv.style.display = dbEngineSelect.value === 'sqlite' ? 'none' : 'block';
+        }
+        function toggleAuth() {
+            authDetailsDiv.style.display = enableAuthCheck.checked ? 'block' : 'none';
+        }
+
+        // --- Modelos ---
+        let modelCounter = 0;
+
+        window.addField = function(modelId) {
+            const container = document.getElementById(`fieldsContainer_${modelId}`);
+            if (!container) return;
+            const fieldId = Date.now() + Math.random();
+            const fieldDiv = document.createElement('div');
+            fieldDiv.className = 'field-item';
+            fieldDiv.dataset.fieldId = fieldId;
+            fieldDiv.innerHTML = `
+                <div class="inline-group">
+                    <div><label>Nombre</label><input type="text" name="field_name_${modelId}_${fieldId}" placeholder="ej: name" required></div>
+                    <div><label>Tipo</label>
+                        <select name="field_type_${modelId}_${fieldId}">
+                            <option value="string">String</option>
+                            <option value="integer">Integer</option>
+                            <option value="boolean">Boolean</option>
+                            <option value="datetime">DateTime</option>
+                            <option value="float">Float</option>
+                        </select>
+                    </div>
+                    <div><label>Requerido</label><input type="checkbox" name="field_required_${modelId}_${fieldId}"></div>
+                    <div><label>Único</label><input type="checkbox" name="field_unique_${modelId}_${fieldId}"></div>
+                    <div><label>Primary Key</label><input type="checkbox" name="field_pk_${modelId}_${fieldId}"></div>
+                    <div><label>Default</label><input type="text" name="field_default_${modelId}_${fieldId}" placeholder="valor por defecto"></div>
+                    <button type="button" class="btn-remove" onclick="this.parentElement.parentElement.remove()">X</button>
+                </div>
+            `;
+            container.appendChild(fieldDiv);
+        };
+
+        function addModel() {
+            const id = modelCounter++;
+            const div = document.createElement('div');
+            div.className = 'model-card';
+            div.dataset.id = id;
+            div.innerHTML = `
+                <div class="inline-group" style="justify-content: space-between;">
+                    <h4>Modelo ${id+1}</h4>
+                    <button type="button" class="btn-remove" onclick="removeModel(${id})">Eliminar</button>
+                </div>
+                <div class="form-group"><label>Nombre del modelo (singular)</label><input type="text" name="model_name_${id}" required placeholder="Ej: Product"></div>
+                <div class="form-group"><label>Nombre de tabla (opcional)</label><input type="text" name="model_table_${id}" placeholder="Ej: products"></div>
+                <div><strong>Campos</strong> <button type="button" class="btn-add-field" onclick="addField(${id})">+ Agregar campo</button></div>
+                <div id="fieldsContainer_${id}"></div>
+            `;
+            modelsContainer.appendChild(div);
+            // Agregar un campo por defecto (id)
+            addField(id);
+        }
+
+        window.removeModel = function(id) {
+            const modelDiv = document.querySelector(`.model-card[data-id='${id}']`);
+            if (modelDiv) modelDiv.remove();
+        };
+
+        // --- Relaciones ---
+        let relationCounter = 0;
+
+        function addRelation() {
+            const id = relationCounter++;
+            const div = document.createElement('div');
+            div.className = 'relationship-card';
+            div.dataset.id = id;
+            div.innerHTML = `
+                <div class="inline-group" style="justify-content: space-between;">
+                    <h4>Relación ${id+1}</h4>
+                    <button type="button" class="btn-remove" onclick="removeRelation(${id})">Eliminar</button>
+                </div>
+                <div class="form-group"><label>Modelo origen</label><input type="text" name="rel_from_${id}" placeholder="Ej: User" required></div>
+                <div class="form-group"><label>Modelo destino</label><input type="text" name="rel_to_${id}" placeholder="Ej: Product" required></div>
+                <div class="form-group"><label>Tipo</label>
+                    <select name="rel_type_${id}">
+                        <option value="one-to-many">Uno a muchos</option>
+                        <option value="many-to-one">Muchos a uno</option>
+                        <option value="many-to-many">Muchos a muchos</option>
+                    </select>
+                </div>
+            `;
+            relationshipsContainer.appendChild(div);
+        }
+
+        window.removeRelation = function(id) {
+            const relDiv = document.querySelector(`.relationship-card[data-id='${id}']`);
+            if (relDiv) relDiv.remove();
+        };
+
+        // --- Eventos iniciales ---
+        if (dbEngineSelect) dbEngineSelect.addEventListener('change', toggleDbCredentials);
+        if (enableAuthCheck) enableAuthCheck.addEventListener('change', toggleAuth);
+        if (addModelBtn) addModelBtn.addEventListener('click', addModel);
+        if (addRelationBtn) addRelationBtn.addEventListener('click', addRelation);
+
+        // Estado inicial
+        toggleDbCredentials();
+        toggleAuth();
+
+        // Agregar primer modelo por defecto
+        addModel();
+
+        // --- Envío del formulario (el mismo que tenías, pero con la mejora de primary key) ---
+        const form = document.getElementById('generatorForm');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const config = {
+                project_name: formData.get('project_name'),
+                description: formData.get('description'),
+                version: '1.0.0',
+                python_version: '3.11',
+                database: {
+                    engine: formData.get('db_engine'),
+                    name: formData.get('db_name'),
+                    user: formData.get('db_user') || '',
+                    password: formData.get('db_password') || '',
+                    host: formData.get('db_host') || '',
+                    port: parseInt(formData.get('db_port')) || null,
+                    use_async: false,
+                },
+                security: {
+                    enabled: enableAuthCheck.checked,
+                    type: 'jwt',
+                    jwt_secret_key: formData.get('jwt_secret') || 'change_this',
+                    jwt_algorithm: 'HS256',
+                    jwt_expire_minutes: parseInt(formData.get('jwt_expire')) || 30,
+                },
+                models: [],
+                relationships: [],
+                include_crud_all: true,
+                include_pagination: formData.has('pagination'),
+                include_filtering: formData.has('filtering'),
+                include_sorting: formData.has('sorting'),
+                include_testing: formData.has('testing'),
+                include_docker: formData.has('docker'),
+                include_alembic: formData.has('alembic'),
+                include_env_file: formData.has('env_file'),
+                admin_email: formData.get('admin_email') || null,
+            };
+
+            // Recolectar modelos
+            const modelDivs = document.querySelectorAll('.model-card');
+            for (let i = 0; i < modelDivs.length; i++) {
+                const div = modelDivs[i];
+                const modelId = div.dataset.id;
+                const name = formData.get(`model_name_${modelId}`);
+                if (!name) continue;
+                const table_name = formData.get(`model_table_${modelId}`) || undefined;
+
+                const fieldDivs = div.querySelectorAll('.field-item');
+                const fields = [];
+                for (let f of fieldDivs) {
+                    const fieldId = f.dataset.fieldId;
+                    const fieldName = formData.get(`field_name_${modelId}_${fieldId}`);
+                    if (!fieldName) continue;
+                    const fieldType = formData.get(`field_type_${modelId}_${fieldId}`);
+                    const required = formData.has(`field_required_${modelId}_${fieldId}`);
+                    const unique = formData.has(`field_unique_${modelId}_${fieldId}`);
+                    let primaryKey = formData.has(`field_pk_${modelId}_${fieldId}`);
+                    let defaultValue = formData.get(`field_default_${modelId}_${fieldId}`);
+                    if (defaultValue === '') defaultValue = null;
+                    if (defaultValue !== null && fieldType === 'integer') defaultValue = parseInt(defaultValue);
+                    if (defaultValue !== null && fieldType === 'float') defaultValue = parseFloat(defaultValue);
+                    if (defaultValue !== null && fieldType === 'boolean') defaultValue = defaultValue === 'true';
+
+                    fields.push({
+                        name: fieldName,
+                        type: fieldType,
+                        required: required,
+                        unique: unique,
+                        primary_key: primaryKey,
+                        default: defaultValue,
+                    });
+                }
+                config.models.push({ name, table_name, fields });
+            }
+
+            // Recolectar relaciones
+            const relDivs = document.querySelectorAll('.relationship-card');
+            for (let i = 0; i < relDivs.length; i++) {
+                const div = relDivs[i];
+                const relId = div.dataset.id;
+                const from = formData.get(`rel_from_${relId}`);
+                const to = formData.get(`rel_to_${relId}`);
+                const type = formData.get(`rel_type_${relId}`);
+                if (from && to) {
+                    config.relationships.push({ from_model: from, to_model: to, type });
+                }
+            }
+
+            // Enviar al backend
+            const response = await fetch('/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config),
+            });
+
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${config.project_name}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.getElementById('result').innerHTML = '<p style="color:green;">✅ Proyecto generado exitosamente. Descarga iniciada.</p>';
+            } else {
+                const error = await response.text();
+                document.getElementById('result').innerHTML = `<p style="color:red;">❌ Error: ${error}</p>`;
+            }
+        });
+    });
+</script>
+</body>
+</html>
